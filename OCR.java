@@ -3,6 +3,7 @@ import java.io.File;
 public class OCR{
 	static int blackPixels;
 	static int index;
+	static final double threshold = 0.90;
 	static ArrayList<Integer> searchRows = new ArrayList<Integer>();
 	static ArrayList<Integer> searchCols = new ArrayList<Integer>();
 	static HashMap<Character,Integer> templateRows = new HashMap<Character,Integer>();
@@ -15,9 +16,9 @@ public class OCR{
 	static Scanner scan;
 	public static void main(String args[]){
 		try{
-			//scan = new Scanner(new File("D:/input.txt"));
+			scan = new Scanner(new File("D:/input.txt"));
 			//scan = new Scanner(new File("D:/temp2.txt"));
-			scan = new Scanner(new File("D:/temp3.txt"));
+			//scan = new Scanner(new File("D:/temp3.txt"));
 			
 		}
 		catch(Exception e){
@@ -152,6 +153,8 @@ public class OCR{
 		int startRow = letter.startRow;
 		int startCol = letter.startCol;
 		
+		double erased = 0.0;
+		int total = templateImagePixels.get(templateChar);
 		
 		for(int i = startRow; i < startRow+templateRow; i++){       
 			for(int j = startCol ; j < startCol+templateCol ; j++){
@@ -159,13 +162,17 @@ public class OCR{
 				if(templateImage[i - startRow][j - startCol] != 1) continue; 
 				if(templateImage[i - startRow][j - startCol] == searchImage[i][j]){ 
 						searchImage[i][j] = 0; 
+						erased ++;
 				}
 				else{
-					return false;
+					//return false;
 				}
 			}
 		}
-		return true;
+		double accuracyRate = erased/total;
+		
+		return accuracyRate > threshold;
+		//return true;
 	}
 	static void printLetters(ArrayList<Letter> inputLetters){
 		if(inputLetters.size()==0){
