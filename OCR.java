@@ -16,7 +16,7 @@ public class OCR{
 	static Scanner scan;
 	public static void main(String args[]){
 		try{
-			scan = new Scanner(new File("D:/input.txt"));
+			scan = new Scanner(new File("D:/temp2.txt"));
 		}
 		catch(Exception e){
 			scan = new Scanner(System.in);
@@ -27,10 +27,10 @@ public class OCR{
 	}
 	static void initializeTemplateImages(){
 		int N = scan.nextInt(); // number of template images
-		int templateRow = scan.nextInt(); // input rows and cols
-		int templateCol = scan.nextInt();
-		for(int i = 0 ; i < N ; i++){ // a letter , an image , a '@'
+		for(int i = 0 ; i < N ; i++){
 			char ch = scan.next().charAt(0); // input a letter
+			int templateRow = scan.nextInt(); // input rows and cols
+			int templateCol = scan.nextInt();
 			int[][] image = new int[templateRow][templateCol];
 			for(int j = 0 ; j < templateRow ; j++){ // input an image
 				String inputImageRow = scan.next();
@@ -40,7 +40,6 @@ public class OCR{
 			}
 			image = templateImageReduceFrame(image,ch);
 			templateImages.put(ch,image);
-			scan.next(); // end of '@'
 		}
 	}
 	static void initializeSearchImages(){
@@ -61,7 +60,6 @@ public class OCR{
 			}
 			searchImagePixels.add(pixels);
 			searchImages.add(image);
-			scan.next(); // end of '@'
 		}
 	}
 	static void initializeCase(int index){
