@@ -1,10 +1,12 @@
 import java.util.*;
 import java.io.File;
+import java.io.FileWriter;
 public class OCR{
 	static int blackPixels;
 	static int index;
 	static final int FAIL = -1;
-	static final double threshold = 0.90;
+	static final double TMthreshold = 0.94;
+	static final double EraseThreshold = 0.90;
 	static ArrayList<Integer> searchRows = new ArrayList<Integer>();
 	static ArrayList<Integer> searchCols = new ArrayList<Integer>();
 	static HashMap<Character,Integer> templateRows = new HashMap<Character,Integer>();
@@ -14,17 +16,23 @@ public class OCR{
 	static ArrayList<int[][]> searchImages = new ArrayList<int[][]>();
 	static ArrayList<int[]> searchImagePixels = new ArrayList<int[]>();
 	static ArrayList<Letter> outputMessage;
+	static HashSet<String> DPnode;
 	static Scanner scan;
+	static long startTime;
 	public static void main(String args[]){
+		startTime = System.currentTimeMillis();
 		try{
-			scan = new Scanner(new File("D:/input.txt"));
+			scan = new Scanner(new File("D:/pgin.txt"));
 		}
 		catch(Exception e){
 			scan = new Scanner(System.in);
 		}
+			
 		initializeTemplateImages();
 		initializeSearchImages();
 		start();
+		System.out.println("h7h1IF0LUMp <- Correct");
+		System.out.println("Using Time:" + (System.currentTimeMillis() - startTime) + " ms");
 	}
 	static void initializeTemplateImages(){
 		int N = scan.nextInt(); // number of template images
@@ -33,13 +41,16 @@ public class OCR{
 			int templateRow = scan.nextInt(); // input rows and cols
 			int templateCol = scan.nextInt();
 			int[][] image = new int[templateRow][templateCol];
+			int pixels = 0;
 			for(int j = 0 ; j < templateRow ; j++){ // input an image
 				String inputImageRow = scan.next();
 				for(int k = 0 ; k < templateCol ; k++){ 
 					image[j][k] = (inputImageRow.charAt(k)=='*')?1:0; //  if '*' then value = 1 ,else value = 0.
+					if(image[j][k] == 1) pixels++;
 				}
 			}
 			image = templateImageReduceFrame(image,ch);
+			templateImagePixels.put(ch,pixels);
 			templateImages.put(ch,image);
 		}
 	}
@@ -49,8 +60,6 @@ public class OCR{
 			int searchRow = scan.nextInt();
 			int searchCol = scan.nextInt();
 			int[] pixels = {0};
-			searchRows.add(searchRow);
-			searchCols.add(searchCol);
 			int[][] image = new int[searchRow][searchCol];
 			for(int j = 0 ; j < searchRow ; j++){ // input an image
 				String inputImageRow = scan.next();
@@ -59,25 +68,34 @@ public class OCR{
 					if(image[j][k] == 1) pixels[0]++;
 				}
 			}
+			image = searchImageReduceFrame(image);
 			searchImagePixels.add(pixels);
 			searchImages.add(image);
 		}
 	}
 	static void initializeCase(int index){
 		outputMessage = new ArrayList<Letter>();
+		DPnode = new HashSet<String>();
 		blackPixels = Integer.MAX_VALUE;
 		OCR.index = index;
 	}
 	static void start(){
 		for(int i = 0 ; i < searchImages.size() ; i++){
-			if(i!=0) System.out.println();
 			initializeCase(i);
 			ArrayList<Letter> letters = templateMatching(searchImages.get(index));
+			System.out.println("Passed template images : " + letters.size());
 			DP(letters,new ArrayList<Letter>(),searchImages.get(index),searchImagePixels.get(index));
-			printLetters(outputMessage);
+			System.out.println(lettersToString(outputMessage));
 		}
 	}
 	static void DP(ArrayList<Letter> letters,ArrayList<Letter> message,int[][] searchImage,int[] pixels){
+		String check = lettersToString(message);
+		if(DPnode.contains(check)){
+			return ;
+		}
+		else{
+			DPnode.add(check);
+		}
 		if(pixels[0]<blackPixels){
 			blackPixels = pixels[0];
 			outputMessage = message;
@@ -97,7 +115,15 @@ public class OCR{
 			int removedPixels = removePixels(letter,copySearchImage);
 			if(removedPixels != FAIL){
 				copyMessage.add(letter);
-				copyPixels[0] -= removedPixels; //templateImagePixels.get(letter.character);
+				//
+				Collections.sort(copyMessage,new Comparator<Letter>(){
+					@Override
+					public int compare(Letter letter1,Letter letter2){
+						return letter1.startCol - letter2.startCol;
+					}
+				});
+				//
+				copyPixels[0] -= removedPixels;
 				DP(copyLetters,copyMessage,copySearchImage,copyPixels); 
 			}
 		}
@@ -123,7 +149,7 @@ public class OCR{
 							SAD += Math.abs(pixelT - pixelS);
 						}
 					}
-					if(1 - SAD / templateArea > threshold){
+					if(1 - SAD / templateArea > TMthreshold){
 						result.add(new Letter(i,j,templateChar));
 					}
 				}
@@ -150,32 +176,16 @@ public class OCR{
 				}
 			}
 		}
+		//double accuracyRate = (templateRow * templateCol -(total - erased)) / templateRow * templateCol ;
 		double accuracyRate = erased*1.0/total;
-		if(accuracyRate > threshold) return erased;
+		if(accuracyRate > EraseThreshold) return erased;
 		else return FAIL;
-	}
-	static void printLetters(ArrayList<Letter> letters){
-		if(letters.size()==0){
-			return ;
-		}
-		Collections.sort(letters,new Comparator<Letter>(){
-			@Override
-			public int compare(Letter letter1,Letter letter2){
-				return letter1.startCol - letter2.startCol;
-			}
-		});
-		for(Iterator<Letter> it = letters.iterator(); it.hasNext();){
-			Letter letter = it.next();
-			System.out.print(letter.character);
-		}
 	}
 	static int[][] templateImageReduceFrame(int[][] image,char ch){
 		int minRow = Integer.MAX_VALUE , maxRow = Integer.MIN_VALUE , minCol = Integer.MAX_VALUE , maxCol = Integer.MIN_VALUE;
-		int pixel = 0;
 		for(int i = 0 ; i < image.length ; i++){
 			for(int j = 0 ; j < image[i].length ; j++){
 				if(image[i][j] == 1){
-					pixel ++;
 					if(i < minRow) minRow = i;
 					if(i > maxRow) maxRow = i;
 					if(j < minCol) minCol = j;
@@ -190,10 +200,38 @@ public class OCR{
 				newImage[i - minRow][j - minCol] = image[i][j];
 			}
 		}
-		templateImagePixels.put(ch,pixel);
 		templateRows.put(ch, row);
 		templateCols.put(ch, col);
 		return newImage;
+	}
+	static int[][] searchImageReduceFrame(int[][] image){
+		int minRow = Integer.MAX_VALUE , maxRow = Integer.MIN_VALUE , minCol = Integer.MAX_VALUE , maxCol = Integer.MIN_VALUE;
+		for(int i = 0 ; i < image.length ; i++){
+			for(int j = 0 ; j < image[i].length ; j++){
+				if(image[i][j] == 1){
+					if(i < minRow) minRow = i;
+					if(i > maxRow) maxRow = i;
+					if(j < minCol) minCol = j;
+					if(j > maxCol) maxCol = j;
+				}
+			}
+		}
+		int row = maxRow - minRow + 1 , col = maxCol - minCol + 1;
+		int[][] newImage = new int[row][col];
+		for(int i = minRow ; i <= maxRow ; i++){
+			for(int j = minCol ; j <= maxCol ; j++){
+				newImage[i - minRow][j - minCol] = image[i][j];
+			}
+		}
+		searchRows.add(row);
+		searchCols.add(col);
+		return newImage;
+	}
+	static String lettersToString(ArrayList<Letter> letters){
+		StringBuffer sb = new StringBuffer();
+		for(int i = 0 ; i < letters.size() ; i++)
+			sb.append(letters.get(i).character);
+		return sb.toString();
 	}
 }
 class Letter{
