@@ -19,6 +19,7 @@ public class OCR{
 	static HashSet<String> DPnode;
 	static Scanner scan;
 	static long startTime;
+	static long cloneTime = 0;
 	public static void main(String args[]){
 		startTime = System.currentTimeMillis();
 		try{
@@ -33,6 +34,7 @@ public class OCR{
 		start();
 		System.out.println("h7h1IF0LUMp <- Correct");
 		System.out.println("Using Time:" + (System.currentTimeMillis() - startTime) + " ms");
+		System.out.println("Clone Time:" +cloneTime + " ms");
 	}
 	static void initializeTemplateImages(){
 		int N = scan.nextInt(); // number of template images
@@ -84,11 +86,11 @@ public class OCR{
 			initializeCase(i);
 			ArrayList<Letter> letters = templateMatching(searchImages.get(index));
 			System.out.println("Passed template images : " + letters.size());
-			DP(letters,new ArrayList<Letter>(),searchImages.get(index),searchImagePixels.get(index));
+			DP(letters,new ArrayList<Letter>(),searchImages.get(index),searchImagePixels.get(index),new ArrayList<Letter>());
 			System.out.println(lettersToString(outputMessage));
 		}
 	}
-	static void DP(ArrayList<Letter> letters,ArrayList<Letter> message,int[][] searchImage,int[] pixels){
+	static void DP(ArrayList<Letter> letters,ArrayList<Letter> message,int[][] searchImage,int[] pixels,ArrayList<Letter> removeList){
 		String check = lettersToString(message);
 		if(DPnode.contains(check)){
 			return ;
@@ -100,31 +102,31 @@ public class OCR{
 			blackPixels = pixels[0];
 			outputMessage = message;
 		}
+		for(int i = 0 ; i < removeList.size() ; i++){
+			letters.remove(removeList.get(i));
+		}
 		if(letters.size()==0){
 			return ;
 		}
+		ArrayList<Letter> copyRemoveList = new ArrayList<Letter>();
 		for(int i = 0 ; i < letters.size() ; i++){   
 			Letter letter = letters.get(i);
-			ArrayList<Letter> copyLetters = (ArrayList<Letter>)letters.clone(); 
-			ArrayList<Letter> copyMessage = (ArrayList<Letter>)message.clone(); 
-			int[][] copySearchImage = new int[searchImage.length][];  
-			for(int j=0;j<searchImage.length;j++)
-				copySearchImage[j] = searchImage[j].clone();
-			copyLetters.remove(i);
-			int[] copyPixels = {pixels[0]};
-			int removedPixels = removePixels(letter,copySearchImage);
-			if(removedPixels != FAIL){
+			int isCandidate = isCandidate(letter,searchImage);
+			if(isCandidate != FAIL){
+				ArrayList<Letter> copyLetters = (ArrayList<Letter>)letters.clone(); 
+				ArrayList<Letter> copyMessage = (ArrayList<Letter>)message.clone(); 
+				copyLetters.remove(i);
 				copyMessage.add(letter);
-				//
-				Collections.sort(copyMessage,new Comparator<Letter>(){
-					@Override
-					public int compare(Letter letter1,Letter letter2){
-						return letter1.startCol - letter2.startCol;
-					}
-				});
-				//
-				copyPixels[0] -= removedPixels;
-				DP(copyLetters,copyMessage,copySearchImage,copyPixels); 
+				sortLetters(copyMessage);
+				int[] copyPixels = {pixels[0]};
+				//long start = System.currentTimeMillis(); // !!!!!!
+				int[][] copySearchImage = copy2DArray(searchImage);
+				removePixels(letter,copySearchImage,copyPixels);
+				//cloneTime += System.currentTimeMillis() - start; // !!!!!!
+				DP(copyLetters,copyMessage,copySearchImage,copyPixels,copyRemoveList); 
+			}
+			else{
+				copyRemoveList.add(letter);
 			}
 		}
 	}
@@ -157,7 +159,7 @@ public class OCR{
 		}
 		return result;
 	}
-	static int removePixels(Letter letter , int[][] searchImage){
+	static int isCandidate(Letter letter , int[][] searchImage){
 		char templateChar = letter.character;
 		int[][] templateImage = templateImages.get(templateChar);
 		int templateRow = templateRows.get(templateChar);
@@ -171,15 +173,31 @@ public class OCR{
 			for(int j = startCol ; j < startCol+templateCol ; j++){
 				if(templateImage[i - startRow][j - startCol] != 1) continue; 
 				if(templateImage[i - startRow][j - startCol] == searchImage[i][j]){ 
-						searchImage[i][j] = 0; 
+						//searchImage[i][j] = 0;  // !!!
 						erased ++;
 				}
 			}
 		}
-		//double accuracyRate = (templateRow * templateCol -(total - erased)) / templateRow * templateCol ;
 		double accuracyRate = erased*1.0/total;
 		if(accuracyRate > EraseThreshold) return erased;
 		else return FAIL;
+	}
+	static void removePixels(Letter letter , int[][] searchImage , int[] pixels){
+		char templateChar = letter.character;
+		int[][] templateImage = templateImages.get(templateChar);
+		int templateRow = templateRows.get(templateChar);
+		int templateCol = templateCols.get(templateChar);
+		int startRow = letter.startRow;
+		int startCol = letter.startCol;
+		for(int i = startRow; i < startRow+templateRow; i++){       
+			for(int j = startCol ; j < startCol+templateCol ; j++){
+				if(templateImage[i - startRow][j - startCol] != 1) continue; 
+				if(templateImage[i - startRow][j - startCol] == searchImage[i][j]){ 
+						searchImage[i][j] = 0;  // !!!
+						pixels[0] --;
+				}
+			}
+		}
 	}
 	static int[][] templateImageReduceFrame(int[][] image,char ch){
 		int minRow = Integer.MAX_VALUE , maxRow = Integer.MIN_VALUE , minCol = Integer.MAX_VALUE , maxCol = Integer.MIN_VALUE;
@@ -227,11 +245,28 @@ public class OCR{
 		searchCols.add(col);
 		return newImage;
 	}
+	static int[][] copy2DArray(int[][] image){
+		int[][] result = new int[image.length][image[0].length];  
+		for(int i=0;i<image.length;i++){
+			for(int j = 0 ; j < image[i].length; j ++){
+				result[i][j] = image[i][j];
+			}
+		}
+		return result;
+	}
 	static String lettersToString(ArrayList<Letter> letters){
 		StringBuffer sb = new StringBuffer();
 		for(int i = 0 ; i < letters.size() ; i++)
 			sb.append(letters.get(i).character);
 		return sb.toString();
+	}
+	static void sortLetters(ArrayList<Letter> letters){
+		Collections.sort(letters,new Comparator<Letter>(){
+			@Override
+			public int compare(Letter letter1,Letter letter2){
+				return letter1.startCol - letter2.startCol;
+			}
+		});
 	}
 }
 class Letter{
